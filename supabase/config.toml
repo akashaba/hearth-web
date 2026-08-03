@@ -1,0 +1,59 @@
+project_id = "finance-tracker-web"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.pooler]
+enabled = false
+port = 54329
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["http://127.0.0.1:3000"]
+jwt_expiry = 3600
+enable_signup = false                # Clerk owns identity
+
+[auth.email]
+enable_signup = false
+enable_confirmations = false
+
+# Clerk third-party auth. Fill `domain` with your Clerk instance's Frontend API
+# domain (looks like `bold-tiger-42.clerk.accounts.dev`) once you create the
+# Clerk project. Supabase will then accept JWTs signed by Clerk.
+# [auth.third_party.clerk]
+# enabled = true
+# domain = "your-project.clerk.accounts.dev"
+
+[edge_runtime]
+enabled = true
+policy = "oneshot"
+inspector_port = 8083
+
+[analytics]
+enabled = false

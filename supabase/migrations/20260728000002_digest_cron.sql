@@ -1,0 +1,42 @@
+-- MANUAL ONE-TIME SETUP — DO NOT RUN AS-IS. DO NOT COMMIT SECRETS.
+--
+-- Hosted Supabase doesn't let the SQL editor's role run `alter database ... set`,
+-- so we can't stash the service-role key in a GUC. Instead, inline it inside
+-- the cron body ONCE per environment via the Supabase Studio SQL Editor.
+--
+-- Steps:
+--   1. Copy the block below (extensions + cron.schedule).
+--   2. Replace `<SUPABASE_URL>` and `<SERVICE_ROLE_KEY>` with real values
+--      (Dashboard → Project Settings → API).
+--   3. Paste + run in Supabase Studio SQL Editor.
+--   4. Confirm: `select jobname, schedule from cron.job;`
+--
+-- Because it contains a secret, do NOT commit the edited version to git.
+--
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- create extension if not exists pg_cron with schema extensions;
+-- create extension if not exists pg_net  with schema extensions;
+--
+-- select cron.unschedule('weekly-digest')
+-- where exists (select 1 from cron.job where jobname = 'weekly-digest');
+--
+-- select cron.schedule(
+--   'weekly-digest',
+--   '0 8 * * 0',
+--   $$
+--     select net.http_post(
+--       url := '<SUPABASE_URL>/functions/v1/generate-weekly-digest',
+--       headers := jsonb_build_object(
+--         'Content-Type', 'application/json',
+--         'Authorization', 'Bearer <SERVICE_ROLE_KEY>'
+--       ),
+--       body := jsonb_build_object('trigger', 'cron')
+--     );
+--   $$
+-- );
+--
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- If you later rotate the service-role key: re-run the block with the new key.
+-- To stop the schedule: `select cron.unschedule('weekly-digest');`

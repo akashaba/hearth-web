@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Hearth">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="55%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded-square background; iOS auto-rounds corners, others get the 22% radius. -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#sheen)"/>
+
+  <!-- H monogram, custom-drawn with two verticals + a stylized crossbar shaped
+       like a bold flame arc — nods to "hearth" (household fire) without being
+       literal about it. Everything is a filled path so no font is needed at
+       render time (SVGs rendered by sharp don't reliably resolve web fonts). -->
+  <g fill="#ffffff">
+    <!-- Left vertical -->
+    <rect x="126" y="110" width="60" height="292" rx="18"/>
+    <!-- Right vertical -->
+    <rect x="326" y="110" width="60" height="292" rx="18"/>
+    <!-- Flame-arced crossbar: a rounded pill that dips upward in the center like a warm arch. -->
+    <path d="M186 218
+             C 210 218, 224 236, 256 236
+             C 288 236, 302 218, 326 218
+             L 326 294
+             C 302 294, 288 276, 256 276
+             C 224 276, 210 294, 186 294
+             Z"/>
+    <!-- Small flame tip above the crossbar center for the hearth motif. -->
+    <path d="M244 176
+             C 244 194, 268 202, 268 224
+             C 268 210, 256 208, 256 194
+             C 262 200, 268 194, 268 184
+             C 268 176, 260 168, 256 160
+             C 252 168, 244 172, 244 176 Z"/>
+  </g>
+</svg>

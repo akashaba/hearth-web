@@ -1,0 +1,51 @@
+-- MANUAL ONE-TIME SETUP — DO NOT RUN AS-IS. DO NOT COMMIT SECRETS.
+--
+-- Same pattern as 20260728000002_digest_cron.sql: hosted Supabase can't stash
+-- the service-role key in a GUC, so we inline it inside the cron body ONCE per
+-- environment via the Supabase Studio SQL Editor.
+--
+-- Runs every Sunday at 09:00 UTC — one hour AFTER the weekly digest so the
+-- digest reflects last week's suggestions (not this Sunday's fresh sweep).
+--
+-- Steps:
+--   1. Copy the block below.
+--   2. Replace `<SUPABASE_URL>` and `<SERVICE_ROLE_KEY>` with real values.
+--   3. Paste + run in Supabase Studio SQL Editor.
+--   4. Confirm: `select jobname, schedule from cron.job where jobname = 'detect-recurring';`
+--
+-- Because it contains a secret, do NOT commit the edited version to git.
+--
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- create extension if not exists pg_cron with schema extensions;
+-- create extension if not exists pg_net  with schema extensions;
+--
+-- select cron.unschedule('detect-recurring')
+-- where exists (select 1 from cron.job where jobname = 'detect-recurring');
+--
+-- select cron.schedule(
+--   'detect-recurring',
+--   '0 9 * * 0',
+--   $$
+--     select net.http_post(
+--       url := '<SUPABASE_URL>/functions/v1/detect-recurring',
+--       headers := jsonb_build_object(
+--         'Content-Type', 'application/json',
+--         'Authorization', 'Bearer <SERVICE_ROLE_KEY>'
+--       ),
+--       body := jsonb_build_object('trigger', 'cron')
+--     );
+--   $$
+-- );
+--
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- To rotate the service-role key: re-run the block with the new key.
+-- To stop the schedule: `select cron.unschedule('detect-recurring');`
+-- To trigger manually to test right now (bash — replace placeholders):
+--
+--   curl -X POST \
+--     -H "Authorization: Bearer <SERVICE_ROLE_KEY>" \
+--     -H "Content-Type: application/json" \
+--     -d '{"trigger":"manual"}' \
+--     '<SUPABASE_URL>/functions/v1/detect-recurring'
