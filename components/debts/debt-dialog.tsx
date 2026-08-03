@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import {
@@ -184,10 +184,10 @@ export function DebtDialog({ open, onOpenChange, editing }: Props) {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Controller
+              <FormField
                 control={form.control}
                 name="apr"
-                render={({ field, fieldState }) => (
+                render={({ field }) => (
                   <FormItem>
                     <FormLabel>APR (%)</FormLabel>
                     <FormControl>
@@ -206,7 +206,7 @@ export function DebtDialog({ open, onOpenChange, editing }: Props) {
                       />
                     </FormControl>
                     <FormDescription>Annual rate, e.g. 4.99 for 4.99% APR.</FormDescription>
-                    {fieldState.error && <FormMessage>{fieldState.error.message}</FormMessage>}
+                    <FormMessage />
                   </FormItem>
                 )}
               />
