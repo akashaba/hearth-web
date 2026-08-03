@@ -40,7 +40,12 @@ export function BankImportView() {
     Record<string, { category_id: string | undefined; group: CategoryGroup | undefined; selected: boolean }>
   >({})
 
-  const parsedTxs = phase.kind === 'review' ? phase.parsed.transactions : []
+  // Memoized so downstream useMemos don't see a new empty array reference on
+  // every render, which would re-run all dependent effects/computations.
+  const parsedTxs = useMemo(
+    () => (phase.kind === 'review' ? phase.parsed.transactions : []),
+    [phase],
+  )
 
   // Fetch existing transactions in the date range of the parsed rows for dedupe.
   const dateRange = useMemo(() => {

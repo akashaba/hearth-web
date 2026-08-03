@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { UserButton } from '@clerk/nextjs'
 import {
@@ -61,12 +62,13 @@ export function Sidebar() {
           className={cn('flex items-center', collapsed ? 'justify-center' : 'gap-3')}
           title={collapsed ? 'Hearth' : undefined}
         >
-          <img
+          <Image
             src="/logo-192.png"
             alt="Hearth"
             className="h-11 w-11 shrink-0 rounded-lg"
             width={44}
             height={44}
+            priority
           />
           {!collapsed && (
             <div className="flex min-w-0 flex-col leading-tight">

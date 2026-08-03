@@ -1,5 +1,11 @@
 import { DebtDetailView } from '@/components/debts/debt-detail-view'
 
-export default function DebtDetailPage({ params }: { params: { id: string } }) {
-  return <DebtDetailView id={params.id} />
+// Next 15: dynamic-route params are async.
+export default async function DebtDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  return <DebtDetailView id={id} />
 }

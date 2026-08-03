@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { ArrowLeft, BarChart3, ShieldCheck, TrendingUp, Wallet } from 'lucide-react'
 // Wallet is still referenced by the Perk row (not the brand mark).
 
@@ -14,12 +15,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Top: logo + back home */}
         <div className="relative flex items-start justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <img
+            <Image
               src="/logo-192.png"
               alt="Hearth"
               className="h-8 w-8 rounded-lg ring-1 ring-white/20"
               width={32}
               height={32}
+              priority
             />
             <span className="text-base font-semibold tracking-tight">Hearth</span>
           </Link>

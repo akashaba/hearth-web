@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   ArrowRight,
   ArrowUpRight,
@@ -103,12 +104,13 @@ export function LandingView() {
         {/* ─── Nav ─────────────────────────────────────────── */}
         <header className="flex items-center justify-between rounded-full border border-slate-200/70 bg-white/70 px-5 py-2.5 backdrop-blur dark:border-slate-800/60 dark:bg-slate-900/60">
           <Link href="/" className="flex items-center gap-3">
-            <img
+            <Image
               src="/logo-192.png"
               alt="Hearth"
               className="h-11 w-11 rounded-lg"
               width={44}
               height={44}
+              priority
             />
             <div className="flex flex-col leading-tight">
               <span className="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50">
@@ -277,8 +279,8 @@ export function LandingView() {
               Explore the standout features
             </h2>
             <p className="mt-4 text-base text-slate-600 dark:text-slate-400">
-              Six tools that work together — because the answer to "should I save more or pay off
-              debt?" needs all six to be honest.
+              Six tools that work together — because the answer to &ldquo;should I save more or pay off
+              debt?&rdquo; needs all six to be honest.
             </p>
           </div>
           <div className="mt-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -389,7 +391,7 @@ export function LandingView() {
         {/* ─── Footer ──────────────────────────────────────── */}
         <footer className="flex flex-col items-center justify-between gap-4 border-t border-slate-200 py-8 sm:flex-row dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <img
+            <Image
               src="/logo-192.png"
               alt="Hearth"
               className="h-10 w-10 rounded-lg"

@@ -91,7 +91,7 @@ export function FixedDeductionDialog({
       } else {
         const created = await create.mutateAsync(values)
         toast.success('Deduction added')
-        onCreated?.(created.id)
+        onCreated?.((created as { id: string }).id)
       }
       onOpenChange(false)
     } catch (e) {
