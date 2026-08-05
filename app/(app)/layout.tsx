@@ -26,7 +26,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           `p-6` here + child `p-6` there = only child renders since flex fills).
           If any page looks off, tell me and I'll thin the offending self-pad.
         */}
-        <main className="flex-1 p-6 lg:p-8">{children}</main>
+        {/* p-4 on mobile, p-6/p-8 on larger — a 375px viewport with p-6 was
+            eating 20% of horizontal space. */}
+        <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   )

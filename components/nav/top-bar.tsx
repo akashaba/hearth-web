@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Bell, Search } from 'lucide-react'
+import { Bell, Menu, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useMobileSidebar } from '@/lib/hooks/use-mobile-sidebar'
 
 /**
  * Quick-access shortcuts across the top of every authenticated page.
@@ -20,8 +22,31 @@ const PILLS = [
 
 export function TopBar() {
   const path = usePathname()
+  const { setOpen } = useMobileSidebar()
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-slate-200 bg-white/80 px-6 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/70">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur-md md:gap-4 md:px-6 dark:border-slate-800 dark:bg-slate-950/70">
+      {/* Mobile-only: hamburger + inline brand mark (since sidebar is hidden). */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 md:hidden dark:text-slate-300 dark:hover:bg-slate-800"
+        aria-label="Open menu"
+      >
+        <Menu className="h-5 w-5" strokeWidth={2} />
+      </button>
+      <Link href="/dashboard" className="flex items-center gap-2 md:hidden">
+        <Image
+          src="/logo-192.png"
+          alt="Hearth"
+          className="h-7 w-7 rounded-md"
+          width={28}
+          height={28}
+        />
+        <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-50">
+          Hearth
+        </span>
+      </Link>
+
       {/* Center: pill tabs — hidden on small screens */}
       <nav className="hidden flex-1 justify-center md:flex">
         <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1 dark:bg-slate-900">
