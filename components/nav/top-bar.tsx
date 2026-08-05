@@ -3,9 +3,10 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Bell, Menu, Search } from 'lucide-react'
+import { Menu, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMobileSidebar } from '@/lib/hooks/use-mobile-sidebar'
+import { NotificationsTray } from './notifications-tray'
 
 /**
  * Quick-access shortcuts across the top of every authenticated page.
@@ -83,14 +84,7 @@ export function TopBar() {
         >
           <Search className="h-4 w-4" strokeWidth={2} />
         </button>
-        <button
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-          title="Notifications (coming soon)"
-          aria-label="Notifications"
-        >
-          <Bell className="h-4 w-4" strokeWidth={2} />
-        </button>
+        <NotificationsTray />
       </div>
     </header>
   )
