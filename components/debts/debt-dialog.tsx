@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch, type Control } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import {
@@ -32,6 +32,7 @@ import {
 import { CurrencyInput } from '@/components/common/currency-input'
 import { CategoryPicker } from '@/components/common/category-picker'
 import { DatePicker } from '@/components/common/date-picker'
+import { cn } from '@/lib/utils'
 import {
   debtSchema,
   DEBT_TYPES,
@@ -189,7 +190,7 @@ export function DebtDialog({ open, onOpenChange, editing }: Props) {
                 name="apr"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>APR (%)</FormLabel>
+                    <FormLabel>Interest rate (%)</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -205,7 +206,11 @@ export function DebtDialog({ open, onOpenChange, editing }: Props) {
                         }}
                       />
                     </FormControl>
-                    <FormDescription>Annual rate, e.g. 4.99 for 4.99% APR.</FormDescription>
+                    <FormDescription>
+                      The <strong>note rate</strong> your servicer charges (usually labeled
+                      &ldquo;Interest Rate&rdquo;). Not the &ldquo;APR&rdquo; on the disclosure —
+                      that one bakes in fees and is slightly higher.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -215,18 +220,25 @@ export function DebtDialog({ open, onOpenChange, editing }: Props) {
                 name="first_payment_date"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>First payment date</FormLabel>
+                    <FormLabel>First payment due date</FormLabel>
                     <FormControl>
                       <DatePicker value={field.value} onChange={(v) => field.onChange(v ?? '')} />
                     </FormControl>
                     <FormDescription>
-                      When you made (or will make) the very first payment.
+                      <strong>Not the origination date.</strong> The date your first monthly
+                      payment was actually due (usually 30–45 days after the loan was originated).
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+
+            {/* Live sanity check: predicted first-month interest.
+                If this doesn't match the interest line on the user's first bill, one of the
+                inputs above is wrong — catches note-rate-vs-APR and disbursement-vs-first-due-date
+                mistakes at input time. */}
+            <FirstMonthInterestPreview control={form.control} />
 
             <FormField
               control={form.control}
@@ -262,5 +274,64 @@ export function DebtDialog({ open, onOpenChange, editing }: Props) {
         </Form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// Watches the form and shows the predicted interest on the very first
+// monthly payment. If this doesn't match the interest line on the user's
+// first bill, one of the inputs is wrong — most commonly a note-rate/APR
+// confusion or a disbursement-date/first-payment-date mix-up.
+function FirstMonthInterestPreview({ control }: { control: Control<DebtInput> }) {
+  const originalBalance = useWatch({ control, name: 'original_balance' })
+  const apr = useWatch({ control, name: 'apr' })
+  const monthlyPayment = useWatch({ control, name: 'monthly_payment' })
+
+  const balance = Number(originalBalance) || 0
+  const rate = Number(apr) || 0
+  const payment = Number(monthlyPayment) || 0
+  if (balance <= 0 || rate <= 0) return null
+
+  const interest = balance * (rate / 12)
+  const principal = payment - interest
+  const readyToShowPrincipal = payment > 0
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-slate-800 dark:bg-slate-900/60">
+      <p className="font-medium text-slate-700 dark:text-slate-300">
+        Sanity check — your first bill
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+        <span>
+          Interest:{' '}
+          <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+            ${interest.toFixed(2)}
+          </span>
+        </span>
+        {readyToShowPrincipal && (
+          <span>
+            Principal:{' '}
+            <span
+              className={cn(
+                'font-semibold tabular-nums',
+                principal <= 0
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : 'text-slate-900 dark:text-slate-100',
+              )}
+            >
+              ${principal.toFixed(2)}
+            </span>
+          </span>
+        )}
+      </div>
+      <p className="mt-1.5 leading-relaxed text-muted-foreground">
+        Compare to the interest line on your servicer&apos;s first statement. If it doesn&apos;t
+        match, your interest rate is probably off (note rate vs. disclosure APR).
+      </p>
+      {readyToShowPrincipal && principal <= 0 && (
+        <p className="mt-1.5 font-medium text-rose-600 dark:text-rose-400">
+          Your monthly payment doesn&apos;t cover the interest — the balance would grow forever.
+        </p>
+      )}
+    </div>
   )
 }
