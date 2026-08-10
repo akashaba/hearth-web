@@ -19,10 +19,15 @@ alter table public.transactions
     references public.fixed_deductions(id) on delete set null;
 
 -- Idempotency for the daily sweep: only one tx per deduction per month.
--- We use to_char(date, 'YYYY-MM') (IMMUTABLE) rather than date_trunc
--- ('STABLE, index-hostile') so Postgres accepts it as an index expression.
+-- Postgres requires index expressions to be IMMUTABLE. date_trunc and
+-- to_char are both STABLE (they pass through timestamp). EXTRACT from a
+-- plain date IS IMMUTABLE, so we bucket by (year, month) as two columns.
 create unique index if not exists transactions_source_deduction_month_uidx
-  on public.transactions (source_deduction_id, to_char(date, 'YYYY-MM'))
+  on public.transactions (
+    source_deduction_id,
+    (EXTRACT(YEAR FROM date)),
+    (EXTRACT(MONTH FROM date))
+  )
   where source_deduction_id is not null;
 
 -- ── 2. notifications ────────────────────────────────────────────────
