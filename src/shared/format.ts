@@ -29,17 +29,27 @@ export function formatDate(iso: string | Date, opts: { long?: boolean } = {}): s
   )
 }
 
+/**
+ * Turn a Date into a YYYY-MM-DD calendar string using the caller's LOCAL
+ * timezone. Previous UTC-based implementation caused off-by-one bugs:
+ * a user east of UTC picking "today" in the DatePicker at 22:00 local
+ * saw the date stored as the next day; a user west of UTC picking at
+ * 02:00 saw it stored as the previous day.
+ *
+ * transactions.date is a plain SQL `date` (no timezone), so what matters
+ * is the calendar day the user is thinking about — always local.
+ */
 export function toISODate(d: Date): string {
-  const y = d.getUTCFullYear()
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(d.getUTCDate()).padStart(2, '0')
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
 
 export function startOfMonth(year: number, month: number): Date {
-  return new Date(Date.UTC(year, month - 1, 1))
+  return new Date(year, month - 1, 1)
 }
 
 export function endOfMonth(year: number, month: number): Date {
-  return new Date(Date.UTC(year, month, 0))
+  return new Date(year, month, 0)
 }

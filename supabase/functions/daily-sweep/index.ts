@@ -54,29 +54,33 @@ serve(async (req) => {
     auth: { persistSession: false },
   })
 
-  const today = new Date()
-  const todayIso = toISO(today)
-  const tomorrow = new Date(today.getTime() + 86400_000)
-  const tomorrowDayOfMonth = tomorrow.getDate()
-  const todayDayOfMonth = today.getDate()
-
+  // Pull each household with its timezone. Falls back to UTC if unset.
   const { data: households, error: hhErr } = await admin
     .from('households')
-    .select('id')
+    .select('id, timezone')
   if (hhErr) return json({ error: hhErr.message }, 500)
 
   const results: Array<{
     household_id: string
+    tz: string
     auto_added: number
     upcoming: number
     budget_alerts: number
     error?: string
   }> = []
 
-  for (const h of households ?? []) {
+  for (const h of (households ?? []) as Array<{ id: string; timezone: string | null }>) {
+    const tz = h.timezone || 'UTC'
+    // Compute today + tomorrow IN THE HOUSEHOLD'S LOCAL TIMEZONE. Prevents
+    // firing 'auto_deduction' for tomorrow's day-of-month just because it's
+    // already tomorrow in UTC (or missing today's because it's still
+    // yesterday there).
+    const today = localCalendarInTz(tz, new Date())
+    const tomorrow = localCalendarInTz(tz, new Date(Date.now() + 86400_000))
+    const todayIso = `${today.year}-${pad(today.month)}-${pad(today.day)}`
     try {
-      const r = await runOne(admin, h.id as string, todayIso, todayDayOfMonth, tomorrowDayOfMonth)
-      results.push({ household_id: h.id as string, ...r })
+      const r = await runOne(admin, h.id, todayIso, today.day, tomorrow.day)
+      results.push({ household_id: h.id, tz, ...r })
     } catch (e) {
       console.error(`daily-sweep failed for ${h.id}:`, e)
       results.push({
@@ -177,8 +181,10 @@ async function runOne(
   // Compute each budget's current-month spend + status. Compare to what
   // we cached in a `budget_snapshots` row from yesterday. Only notify on
   // status transitions (ok → warning, warning → over, ok → over).
-  const now = new Date()
-  const startOfMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`
+  // Start of month derived from the household's local "today" (todayIso is
+  // already localized by the caller), not UTC — otherwise budget checks on
+  // month-boundary days can compare against the wrong month.
+  const startOfMonth = `${todayIso.slice(0, 7)}-01`
 
   const { data: budgets } = await admin
     .from('budgets')
@@ -248,11 +254,28 @@ async function runOne(
   return { auto_added: autoAdded, upcoming, budget_alerts: budgetAlerts }
 }
 
-function toISO(d: Date): string {
-  const y = d.getUTCFullYear()
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(d.getUTCDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+/**
+ * Extract the calendar year/month/day for a moment `when` as seen in the
+ * IANA timezone `tz`. Uses Intl.DateTimeFormat because the JS Date API
+ * doesn't natively support timezone-aware component extraction.
+ * en-CA is used because it renders as YYYY-MM-DD, which we parse back.
+ */
+function localCalendarInTz(
+  tz: string,
+  when: Date,
+): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(when)
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0)
+  return { year: get('year'), month: get('month'), day: get('day') }
+}
+
+function pad(n: number): string {
+  return String(n).padStart(2, '0')
 }
 
 function json(body: unknown, status: number): Response {
