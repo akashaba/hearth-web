@@ -1,126 +1,131 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useUser } from '@clerk/nextjs'
 import type { LucideIcon } from 'lucide-react'
-import { AlertTriangle, PiggyBank, Repeat, TrendingDown } from 'lucide-react'
-import { usePendingRecurringSuggestions } from './use-recurring-suggestions'
-import { useBudgetsWithProgress } from './use-budgets'
-import { useCashflowForecast } from './use-cashflow-forecast'
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  CalendarClock,
+  PiggyBank,
+  Repeat,
+} from 'lucide-react'
+import { useSupabase } from '@/lib/supabase/browser'
+import { useAuthedQuery } from './use-authed-query'
 
-/**
- * Smart-tray notifications derived from live data — no persistence.
- * Every item points at the page where the user can act on it. Count clears
- * naturally when the underlying condition resolves (dismiss the suggestion,
- * spend less this month, etc.).
- *
- * If we ever add a real notifications table, these can become the first
- * "generators" that populate it.
- */
-export type SmartNotification = {
+export type NotificationKind =
+  | 'transaction'
+  | 'auto_deduction'
+  | 'upcoming_deduction'
+  | 'budget_warning'
+  | 'budget_over'
+
+export type Notification = {
   id: string
-  icon: LucideIcon
-  tone: 'warning' | 'info' | 'danger'
+  kind: NotificationKind
   title: string
   body: string
-  href: string
+  meta: Record<string, unknown>
+  related_href: string | null
+  created_at: string
+  read_at: string | null // per-user read state (join)
 }
 
-const DANGER_WINDOW_DAYS = 30
+const qkNotifications = ['notifications'] as const
 
-export function useSmartNotifications(): {
-  items: SmartNotification[]
-  count: number
+export function useNotifications(): {
+  items: Notification[]
+  unreadCount: number
   isLoading: boolean
 } {
-  const { data: suggestions, isLoading: sLoading } = usePendingRecurringSuggestions()
-  const { data: budgets, isLoading: bLoading } = useBudgetsWithProgress()
-  const { data: forecast, isLoading: fLoading } = useCashflowForecast(90, 500)
+  const supabase = useSupabase()
+  const { user } = useUser()
 
-  const items = useMemo<SmartNotification[]>(() => {
-    const out: SmartNotification[] = []
-
-    // ─── Recurring suggestions ──────────────────────────
-    if (suggestions.length > 0) {
-      const yearly = suggestions.reduce((s, r) => s + r.avg_amount * 12, 0)
-      out.push({
-        id: 'recurring-suggestions',
-        icon: Repeat,
-        tone: 'info',
-        title: `${suggestions.length} subscription${suggestions.length === 1 ? '' : 's'} to review`,
-        body: `Detected recurring charges worth ~$${Math.round(yearly).toLocaleString()} / year. Keep or dismiss each.`,
-        href: '/subscriptions',
+  const q = useAuthedQuery<Notification[]>({
+    queryKey: qkNotifications,
+    queryFn: async () => {
+      // Pull recent household notifications; also LEFT JOIN each user's own
+      // read state (only rows where notification_reads.user_id = me).
+      const { data, error } = await supabase
+        .from('notifications')
+        .select(
+          'id, kind, title, body, meta, related_href, created_at, notification_reads(read_at)',
+        )
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (error) throw error
+      const uid = user?.id
+      return (data ?? []).map((r) => {
+        const reads = (r as { notification_reads?: Array<{ read_at: string; user_id?: string }> })
+          .notification_reads
+        // The RLS on notification_reads only returns the caller's own rows,
+        // so any row present means "I read this". read_at = timestamp of that.
+        const readAt = reads && reads.length > 0 ? reads[0].read_at : null
+        return {
+          ...(r as unknown as Notification),
+          read_at: readAt,
+        } as Notification
       })
-    }
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000, // poll every 60s so new notifications appear without a refresh
+  })
 
-    // ─── Budgets past their alert threshold ─────────────
-    const overBudgets = budgets.filter((b) => b.status === 'over')
-    const warnBudgets = budgets.filter((b) => b.status === 'warning')
-    if (overBudgets.length > 0) {
-      const names = overBudgets
-        .map((b) => b.category?.name ?? 'Uncategorized')
-        .slice(0, 3)
-        .join(', ')
-      out.push({
-        id: 'budgets-over',
-        icon: PiggyBank,
-        tone: 'danger',
-        title: `${overBudgets.length} budget${overBudgets.length === 1 ? '' : 's'} over cap`,
-        body: overBudgets.length <= 3 ? names : `${names}, and ${overBudgets.length - 3} more`,
-        href: '/budgets',
-      })
-    }
-    if (warnBudgets.length > 0) {
-      const names = warnBudgets
-        .map((b) => b.category?.name ?? 'Uncategorized')
-        .slice(0, 3)
-        .join(', ')
-      out.push({
-        id: 'budgets-warn',
-        icon: PiggyBank,
-        tone: 'warning',
-        title: `${warnBudgets.length} budget${warnBudgets.length === 1 ? '' : 's'} near the cap`,
-        body: warnBudgets.length <= 3 ? names : `${names}, and ${warnBudgets.length - 3} more`,
-        href: '/budgets',
-      })
-    }
+  const items = q.data ?? []
+  const unreadCount = useMemo(() => items.filter((n) => !n.read_at).length, [items])
+  return { items, unreadCount, isLoading: q.isLoading }
+}
 
-    // ─── Cashflow forecast dips below danger threshold ──
-    if (forecast?.dangerCrossingDate) {
-      const daysAhead = daysBetween(new Date(), new Date(forecast.dangerCrossingDate))
-      if (daysAhead >= 0 && daysAhead <= DANGER_WINDOW_DAYS) {
-        out.push({
-          id: 'cashflow-danger',
-          icon: daysAhead <= 7 ? AlertTriangle : TrendingDown,
-          tone: daysAhead <= 7 ? 'danger' : 'warning',
-          title:
-            daysAhead <= 0
-              ? 'Balance is below your alert threshold'
-              : `Balance dips low in ${daysAhead} day${daysAhead === 1 ? '' : 's'}`,
-          body: `Projected to cross $500 on ${formatShort(forecast.dangerCrossingDate)}. Adjust spend or shift a bill to buy runway.`,
-          href: '/forecast',
-        })
-      }
-    }
+export function useMarkAllRead() {
+  const supabase = useSupabase()
+  const { user } = useUser()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!user?.id || ids.length === 0) return
+      const rows = ids.map((notification_id) => ({
+        notification_id,
+        user_id: user.id,
+      }))
+      const { error } = await supabase
+        .from('notification_reads')
+        .upsert(rows, { onConflict: 'notification_id,user_id', ignoreDuplicates: true })
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: qkNotifications }),
+  })
+}
 
-    return out
-  }, [suggestions, budgets, forecast])
-
-  return {
-    items,
-    count: items.length,
-    isLoading: sLoading || bLoading || fLoading,
+// ─── UI-side tone/icon mapping ────────────────────────────────────────
+export function iconFor(kind: NotificationKind): LucideIcon {
+  switch (kind) {
+    case 'auto_deduction':
+      return Repeat
+    case 'upcoming_deduction':
+      return CalendarClock
+    case 'budget_warning':
+      return PiggyBank
+    case 'budget_over':
+      return AlertTriangle
+    case 'transaction':
+    default:
+      return ArrowUpRight
   }
 }
 
-function daysBetween(a: Date, b: Date): number {
-  const day = 86400_000
-  return Math.floor((b.getTime() - a.getTime()) / day)
-}
-
-function formatShort(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  })
+export function toneFor(kind: NotificationKind): 'info' | 'warning' | 'danger' | 'muted' {
+  switch (kind) {
+    case 'budget_over':
+      return 'danger'
+    case 'budget_warning':
+      return 'warning'
+    case 'upcoming_deduction':
+      return 'warning'
+    case 'auto_deduction':
+      return 'info'
+    case 'transaction':
+    default:
+      return 'muted'
+  }
 }

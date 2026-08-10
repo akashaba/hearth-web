@@ -1,0 +1,48 @@
+-- MANUAL ONE-TIME SETUP — DO NOT RUN AS-IS. DO NOT COMMIT SECRETS.
+--
+-- Same pattern as the digest + recurring cron templates: inline the
+-- service-role key once in Supabase Studio SQL Editor because hosted
+-- Supabase blocks `ALTER DATABASE ... SET` for GUCs.
+--
+-- Runs daily at 06:00 UTC. Adjust the schedule if you'd rather run at
+-- local morning for your timezone.
+--
+-- Steps:
+--   1. Copy the block below.
+--   2. Replace <SUPABASE_URL> and <SERVICE_ROLE_KEY> with real values.
+--   3. Paste + run in Supabase Studio SQL Editor.
+--   4. Confirm: `select jobname, schedule from cron.job where jobname = 'daily-sweep';`
+--
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- create extension if not exists pg_cron with schema extensions;
+-- create extension if not exists pg_net  with schema extensions;
+--
+-- select cron.unschedule('daily-sweep')
+-- where exists (select 1 from cron.job where jobname = 'daily-sweep');
+--
+-- select cron.schedule(
+--   'daily-sweep',
+--   '0 6 * * *',
+--   $$
+--     select net.http_post(
+--       url := '<SUPABASE_URL>/functions/v1/daily-sweep',
+--       headers := jsonb_build_object(
+--         'Content-Type', 'application/json',
+--         'Authorization', 'Bearer <SERVICE_ROLE_KEY>'
+--       ),
+--       body := jsonb_build_object('trigger', 'cron')
+--     );
+--   $$
+-- );
+--
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Manual smoke test (bash):
+--   curl -X POST \
+--     -H "Authorization: Bearer <SERVICE_ROLE_KEY>" \
+--     -H "Content-Type: application/json" \
+--     -d '{"trigger":"manual"}' \
+--     '<SUPABASE_URL>/functions/v1/daily-sweep'
+--
+-- To stop the schedule: `select cron.unschedule('daily-sweep');`
