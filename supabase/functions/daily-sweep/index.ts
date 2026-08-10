@@ -35,6 +35,18 @@ serve(async (req) => {
     .filter((k): k is string => !!k)
     .map((k) => `Bearer ${k}`)
   if (!accepted.includes(auth)) {
+    // Log enough to diagnose without leaking either key: show length +
+    // last 8 chars of the received bearer, and length + last 8 chars of
+    // the stored keys, plus which env slots are populated.
+    const receivedRaw = auth.startsWith('Bearer ') ? auth.slice(7) : auth
+    console.error(
+      'daily-sweep 403 — Authorization did not match. ' +
+        `Have SUPABASE_SERVICE_ROLE_KEY: ${!!serviceKey}` +
+        (serviceKey ? ` (len=${serviceKey.length} tail=…${serviceKey.slice(-8)})` : '') +
+        ` | Have CRON_TRIGGER_KEY: ${!!cronKey}` +
+        (cronKey ? ` (len=${cronKey.length} tail=…${cronKey.slice(-8)})` : '') +
+        ` | Received bearer: len=${receivedRaw.length} tail=…${receivedRaw.slice(-8)}`,
+    )
     return json({ error: 'forbidden' }, 403)
   }
 
