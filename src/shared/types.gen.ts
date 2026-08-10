@@ -522,6 +522,73 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_reads: {
+        Row: {
+          notification_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          notification_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          notification_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_reads_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string
+          created_at: string
+          household_id: string
+          id: string
+          kind: string
+          meta: Json
+          related_href: string | null
+          title: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          household_id: string
+          id?: string
+          kind: string
+          meta?: Json
+          related_href?: string | null
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          household_id?: string
+          id?: string
+          kind?: string
+          meta?: Json
+          related_href?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_dedupe: {
         Row: {
           key: string
@@ -759,6 +826,7 @@ export type Database = {
           id: string
           notes: string | null
           receipt_id: string | null
+          source_deduction_id: string | null
           type: Database["public"]["Enums"]["transaction_type"]
         }
         Insert: {
@@ -773,6 +841,7 @@ export type Database = {
           id?: string
           notes?: string | null
           receipt_id?: string | null
+          source_deduction_id?: string | null
           type: Database["public"]["Enums"]["transaction_type"]
         }
         Update: {
@@ -787,6 +856,7 @@ export type Database = {
           id?: string
           notes?: string | null
           receipt_id?: string | null
+          source_deduction_id?: string | null
           type?: Database["public"]["Enums"]["transaction_type"]
         }
         Relationships: [
@@ -816,6 +886,13 @@ export type Database = {
             columns: ["receipt_id"]
             isOneToOne: false
             referencedRelation: "receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_source_deduction_id_fkey"
+            columns: ["source_deduction_id"]
+            isOneToOne: false
+            referencedRelation: "fixed_deductions"
             referencedColumns: ["id"]
           },
         ]
