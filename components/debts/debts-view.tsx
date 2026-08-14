@@ -35,9 +35,11 @@ import {
 } from '@/components/ui/alert-dialog'
 import { DebtDialog } from './debt-dialog'
 import {
+  isEarlyPayoff,
   isPaidOff,
   useDebtsWithSnapshots,
   useDeleteDebt,
+  useMarkPaidOff,
   useUpdateDebt,
   type Debt,
   type DebtWithSnapshot,
@@ -50,10 +52,12 @@ export function DebtsView() {
   const { data: rows, isLoading } = useDebtsWithSnapshots()
   const del = useDeleteDebt()
   const update = useUpdateDebt()
+  const markPaidOff = useMarkPaidOff()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Debt | null>(null)
   const [deleting, setDeleting] = useState<Debt | null>(null)
+  const [payingOff, setPayingOff] = useState<DebtWithSnapshot | null>(null)
   const [archivedOpen, setArchivedOpen] = useState(false)
 
   const { active, archived } = useMemo(() => {
@@ -124,6 +128,24 @@ export function DebtsView() {
       toast.error((e as Error).message)
     }
   }
+  const confirmMarkPaidOff = async () => {
+    if (!payingOff) return
+    try {
+      await markPaidOff.mutateAsync({ id: payingOff.id, paidOff: true })
+      toast.success(`${payingOff.name} — paid off. Nice.`)
+      setPayingOff(null)
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
+  const unmarkPaidOff = async (d: Debt) => {
+    try {
+      await markPaidOff.mutateAsync({ id: d.id, paidOff: false })
+      toast.success(`${d.name} — no longer marked paid off`)
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -172,6 +194,10 @@ export function DebtsView() {
                   onEdit={() => openEdit(d)}
                   onDelete={() => setDeleting(d)}
                   onArchive={() => archive(d)}
+                  onMarkPaidOff={
+                    !isPaidOff(d) && !d.snapshot.neverPaysOff ? () => setPayingOff(d) : undefined
+                  }
+                  onUnmarkPaidOff={isEarlyPayoff(d) ? () => unmarkPaidOff(d) : undefined}
                 />
               ))}
             </div>
@@ -243,6 +269,46 @@ export function DebtsView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!payingOff} onOpenChange={(o) => !o && setPayingOff(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark {payingOff?.name} as paid off?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {payingOff && (
+                <>
+                  The amortization projected{' '}
+                  <strong>{formatMoney(payingOff.snapshot.currentBalance)}</strong> remaining across{' '}
+                  <strong>
+                    {payingOff.snapshot.paymentsRemaining} payment
+                    {payingOff.snapshot.paymentsRemaining === 1 ? '' : 's'}
+                  </strong>
+                  . If you paid it all off (lump sum, refinance, settlement), mark it done —
+                  the debt moves to the paid-off state and the projections stop. Your existing
+                  transactions stay untouched.
+                  <br />
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    If you also want the payoff to show up in your ledger, add a transaction for{' '}
+                    {formatMoney(payingOff.snapshot.currentBalance)} separately on the Transactions
+                    page.
+                  </span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={confirmMarkPaidOff}
+              disabled={markPaidOff.isPending}
+            >
+              {markPaidOff.isPending ? 'Saving…' : 'Yes, paid off'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -254,6 +320,8 @@ function DebtCard({
   onDelete,
   onArchive,
   onReopen,
+  onMarkPaidOff,
+  onUnmarkPaidOff,
 }: {
   debt: DebtWithSnapshot
   isPriority: boolean
@@ -261,6 +329,8 @@ function DebtCard({
   onDelete: () => void
   onArchive?: () => void
   onReopen?: () => void
+  onMarkPaidOff?: () => void
+  onUnmarkPaidOff?: () => void
 }) {
   const s = d.snapshot
   const paid = Math.max(0, d.original_balance - s.currentBalance)
@@ -330,9 +400,17 @@ function DebtCard({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
+                {onMarkPaidOff && (
+                  <DropdownMenuItem onClick={onMarkPaidOff}>Mark as paid off</DropdownMenuItem>
+                )}
+                {onUnmarkPaidOff && (
+                  <DropdownMenuItem onClick={onUnmarkPaidOff}>
+                    Unmark paid off
+                  </DropdownMenuItem>
+                )}
                 {onArchive && (
                   <DropdownMenuItem onClick={onArchive}>
-                    {paidOff ? 'Archive (celebrate + hide)' : 'Archive'}
+                    {paidOff ? 'Archive (hide from list)' : 'Archive'}
                   </DropdownMenuItem>
                 )}
                 {onReopen && (
@@ -453,33 +531,61 @@ function ActiveBody({
 
 function PaidOffBody({ debt: d, paid }: { debt: DebtWithSnapshot; paid: number }) {
   const s = d.snapshot
+  const early = isEarlyPayoff(d)
   const totalInterestPaid = paid > 0 ? s.interestPaidToDate : 0
+  const remainingWhenPaidOff = early ? s.currentBalance : 0
+  const interestSavedByEarly = early ? s.interestRemaining : 0
+
   return (
     <>
       <div className="mt-5 rounded-xl border border-emerald-200 bg-white/60 p-4 dark:border-emerald-900/40 dark:bg-slate-900/60">
-        <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
-          You paid off{' '}
-          <span className="font-semibold text-slate-900 dark:text-slate-50">
-            {formatMoney(d.original_balance)}
-          </span>{' '}
-          in principal over{' '}
-          <span className="font-semibold text-slate-900 dark:text-slate-50">
-            {s.paymentsMade} payment{s.paymentsMade === 1 ? '' : 's'}
-          </span>
-          {s.payoffDate ? (
-            <>
-              , finishing{' '}
-              <span className="font-semibold text-slate-900 dark:text-slate-50">
-                {formatDate(s.payoffDate, { long: true })}
-              </span>
-            </>
-          ) : null}
-          . Total interest paid:{' '}
-          <span className="font-semibold text-slate-900 dark:text-slate-50">
-            {formatMoney(totalInterestPaid)}
-          </span>
-          .
-        </p>
+        {early ? (
+          <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+            Paid off early on{' '}
+            <span className="font-semibold text-slate-900 dark:text-slate-50">
+              {d.paid_off_at ? formatDate(d.paid_off_at, { long: true }) : 'unknown date'}
+            </span>
+            . You settled the remaining{' '}
+            <span className="font-semibold text-slate-900 dark:text-slate-50">
+              {formatMoney(remainingWhenPaidOff)}
+            </span>{' '}
+            balance ahead of schedule
+            {interestSavedByEarly > 0 && (
+              <>
+                , saving{' '}
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                  {formatMoney(interestSavedByEarly)}
+                </span>{' '}
+                in future interest
+              </>
+            )}
+            .
+          </p>
+        ) : (
+          <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+            You paid off{' '}
+            <span className="font-semibold text-slate-900 dark:text-slate-50">
+              {formatMoney(d.original_balance)}
+            </span>{' '}
+            in principal over{' '}
+            <span className="font-semibold text-slate-900 dark:text-slate-50">
+              {s.paymentsMade} payment{s.paymentsMade === 1 ? '' : 's'}
+            </span>
+            {s.payoffDate ? (
+              <>
+                , finishing{' '}
+                <span className="font-semibold text-slate-900 dark:text-slate-50">
+                  {formatDate(s.payoffDate, { long: true })}
+                </span>
+              </>
+            ) : null}
+            . Total interest paid:{' '}
+            <span className="font-semibold text-slate-900 dark:text-slate-50">
+              {formatMoney(totalInterestPaid)}
+            </span>
+            .
+          </p>
+        )}
       </div>
       <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-950/40">
         <div className="h-full w-full rounded-full bg-emerald-500" />

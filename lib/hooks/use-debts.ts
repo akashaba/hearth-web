@@ -22,6 +22,7 @@ export type Debt = {
   notes: string | null
   active: boolean
   created_at: string
+  paid_off_at: string | null
 }
 
 export type DebtWithSnapshot = Debt & { snapshot: LoanSnapshot }
@@ -36,7 +37,7 @@ export function useDebts(): { data: Debt[]; isLoading: boolean } {
       const { data, error } = await supabase
         .from('debts')
         .select(
-          'id, name, debt_type, original_balance, apr, monthly_payment, first_payment_date, category_id, fixed_deduction_id, notes, active, created_at',
+          'id, name, debt_type, original_balance, apr, monthly_payment, first_payment_date, category_id, fixed_deduction_id, notes, active, created_at, paid_off_at',
         )
         .order('created_at', { ascending: false })
       if (error) throw error
@@ -51,9 +52,19 @@ export function useDebts(): { data: Debt[]; isLoading: boolean } {
   return { data: q.data ?? [], isLoading: q.isLoading }
 }
 
-/** Convenience: derive whether a debt should be treated as paid off. */
+/**
+ * A debt is paid off if EITHER the amortization says it's finished
+ * (paymentsRemaining === 0) OR the user manually marked it via
+ * `paid_off_at` (early payoff, refinance, lump-sum settlement).
+ */
 export function isPaidOff(d: DebtWithSnapshot): boolean {
+  if (d.paid_off_at) return true
   return !d.snapshot.neverPaysOff && d.snapshot.paymentsRemaining === 0
+}
+
+/** True only when the user manually marked the debt paid off, not via amortization. */
+export function isEarlyPayoff(d: DebtWithSnapshot): boolean {
+  return !!d.paid_off_at
 }
 
 export function useDebtsWithSnapshots(): {
@@ -115,6 +126,21 @@ export function useUpdateDebt() {
         .single()
       if (error) throw error
       return data
+    },
+    onSuccess: () => invalidate(qc),
+  })
+}
+
+export function useMarkPaidOff() {
+  const supabase = useSupabase()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, paidOff }: { id: string; paidOff: boolean }) => {
+      const { error } = await supabase
+        .from('debts')
+        .update({ paid_off_at: paidOff ? new Date().toISOString() : null })
+        .eq('id', id)
+      if (error) throw error
     },
     onSuccess: () => invalidate(qc),
   })
