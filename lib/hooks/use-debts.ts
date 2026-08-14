@@ -31,12 +31,13 @@ export function useDebts(): { data: Debt[]; isLoading: boolean } {
   const q = useAuthedQuery<Debt[]>({
     queryKey: qk.debts,
     queryFn: async () => {
+      // Fetch ALL debts (active + archived) — the view splits them into
+      // sections so users can find/reopen archived ones.
       const { data, error } = await supabase
         .from('debts')
         .select(
           'id, name, debt_type, original_balance, apr, monthly_payment, first_payment_date, category_id, fixed_deduction_id, notes, active, created_at',
         )
-        .eq('active', true)
         .order('created_at', { ascending: false })
       if (error) throw error
       return (data ?? []).map((r) => ({
@@ -48,6 +49,11 @@ export function useDebts(): { data: Debt[]; isLoading: boolean } {
     },
   })
   return { data: q.data ?? [], isLoading: q.isLoading }
+}
+
+/** Convenience: derive whether a debt should be treated as paid off. */
+export function isPaidOff(d: DebtWithSnapshot): boolean {
+  return !d.snapshot.neverPaysOff && d.snapshot.paymentsRemaining === 0
 }
 
 export function useDebtsWithSnapshots(): {
